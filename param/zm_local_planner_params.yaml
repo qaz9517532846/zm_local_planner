@@ -13,6 +13,7 @@ ZMLocalPlanner:
 # Goal Tolerance Parametes
   xy_goal_tolerance: 0.05
   yaw_goal_tolerance: 0.17
+  yaw_moving_tolerance: 0.5
 
 # Forward Simulation Parameters
   timeout: 0.5
