@@ -31,6 +31,7 @@ namespace zm_local_planner
         rotation_vel_.min_vel = config.min_vel_theta;
         xy_tolerance_ = config.xy_goal_tolerance;
         yaw_tolerance_ = config.yaw_goal_tolerance;
+		yaw_moving_tolerance_ = config.yaw_moving_tolerance;
         transform_timeout_ = config.timeout;
     }
 
@@ -89,11 +90,11 @@ namespace zm_local_planner
 		{
 			state_ = RotatingToGoal;
 		}
-		else if(rotation <= yaw_tolerance_ && path_index_ < 10)
+		else if(rotation <= yaw_moving_tolerance_)
 		{
 			state_ = Moving;
 		}
-		else if(path_index_ > 10)
+		else if(rotation > yaw_moving_tolerance_)
 		{
 			// Set the state to RotatingToStart
 			state_ = RotatingToStart;

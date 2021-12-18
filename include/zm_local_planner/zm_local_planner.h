@@ -84,6 +84,7 @@ namespace zm_local_planner
            
            double heading_lookahead_;
            double yaw_tolerance_, xy_tolerance_;
+           double yaw_moving_tolerance_;
            double transform_timeout_;
     };
 
