@@ -1,0 +1,18 @@
+ZMLocalPlanner:
+  
+  map_frame: "map"
+  heading_lookahead: 0.3
+
+# Robot Configuration Parameters
+  max_linear_vel:  0.5
+  min_linear_vel: -0.5
+
+  max_vel_theta:  0.5
+  min_vel_theta: -0.5
+
+# Goal Tolerance Parametes
+  xy_goal_tolerance: 0.05
+  yaw_goal_tolerance: 0.17
+
+# Forward Simulation Parameters
+  timeout: 0.5
