@@ -44,7 +44,9 @@ namespace zm_local_planner
            double calLinearVel();
            double calRotationVel(double rotation);
            double linearDistance(geometry_msgs::Point p1, geometry_msgs::Point p2);
-           double mapToMinusPIToPI(double angle);
+           double calDeltaAngle(geometry_msgs::PoseStamped p1, geometry_msgs::PoseStamped p2);
+           const inline double rewrapAngleRestricted(const double angle);
+           const inline double RestrictedForwardAngle(const double angle);
            void reconfigureCB(ZMLocalPlannerConfig &config, uint32_t level);
 
 	       dynamic_reconfigure::Server<ZMLocalPlannerConfig> *dsrv_;
@@ -86,6 +88,8 @@ namespace zm_local_planner
            double yaw_tolerance_, xy_tolerance_;
            double yaw_moving_tolerance_;
            double transform_timeout_;
+
+           bool use_BackForward;
     };
 
 };

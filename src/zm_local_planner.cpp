@@ -9,7 +9,8 @@ namespace zm_local_planner
     ZMLocalPlanner::ZMLocalPlanner() : tf_(NULL),
                                        state_(Finished),
                                        curr_heading_index_(0),
-									   next_heading_index_(0)
+									   next_heading_index_(0),
+									   use_BackForward(false)
     {
 
     }
@@ -78,23 +79,22 @@ namespace zm_local_planner
 			return false;
 		}
 
-		// Create a vector between the current odom pose to the next heading pose
-		double x = global_plan_[path_index_].pose.position.x - robot_pose_.pose.position.x;
-		double y = global_plan_[path_index_].pose.position.y - robot_pose_.pose.position.y;
-
 		// Calculate the rotation between the current odom and the vector created above
-		double rotation = (::atan2(y,x) - tf2::getYaw(robot_pose_.pose.orientation));
-		rotation = mapToMinusPIToPI(rotation);
+		double rotation = calDeltaAngle(robot_pose_, global_plan_[path_index_]);
+		rotation = RestrictedForwardAngle(rotation);
+		//ROS_INFO("delta_th = %f", rotation);
 
 		if(linearDistance(robot_pose_.pose.position, global_plan_[path_index_].pose.position) <= xy_tolerance_)
 		{
 			state_ = RotatingToGoal;
 		}
-		else if(rotation <= yaw_moving_tolerance_)
+		else if(fabs(rotation) <= yaw_moving_tolerance_ &&
+		        linearDistance(robot_pose_.pose.position, global_plan_[path_index_].pose.position) > xy_tolerance_)
 		{
 			state_ = Moving;
 		}
-		else if(rotation > yaw_moving_tolerance_)
+		else if(fabs(rotation) > yaw_moving_tolerance_ &&
+		        linearDistance(robot_pose_.pose.position, global_plan_[path_index_].pose.position) > xy_tolerance_)
 		{
 			// Set the state to RotatingToStart
 			state_ = RotatingToStart;
@@ -207,16 +207,11 @@ namespace zm_local_planner
 			return false;
 		}
 
-		// Create a vector between the current odom pose to the next heading pose
-		double x = rotate_goal.pose.position.x - robot_pose_.pose.position.x;
-		double y = rotate_goal.pose.position.y - robot_pose_.pose.position.y;
+	    double rotation = calDeltaAngle(robot_pose_, rotate_goal);
+		rotation = RestrictedForwardAngle(rotation);
+		//ROS_INFO("delta_th = %f", rotation);
 
-		// Calculate the rotation between the current odom and the vector created above
-		double rotation = (::atan2(y,x) - tf2::getYaw(robot_pose_.pose.orientation));
-
-		rotation = mapToMinusPIToPI(rotation);
-
-		if(fabs(rotation) < yaw_tolerance_)
+		if(fabs(rotation) < yaw_moving_tolerance_)
 		{
 			state_ = Moving;
 			return true;
@@ -255,19 +250,14 @@ namespace zm_local_planner
 			ROS_ERROR("Extrapolation Error: %s\n", ex.what());
 			return false;
 		}
-
-		// Create a vector between the current odom pose to the next heading pose
-		double x = move_goal.pose.position.x - robot_pose_.pose.position.x;
-		double y = move_goal.pose.position.y - robot_pose_.pose.position.y;
-
-		// Calculate the rotation between the current odom and the vector created above
-		double rotation = (::atan2(y,x) - tf2::getYaw(robot_pose_.pose.orientation));
-
-		rotation = mapToMinusPIToPI(rotation);
+	    
+		double rotation = calDeltaAngle(robot_pose_, move_goal);
+		rotation = RestrictedForwardAngle(rotation);
+		//ROS_INFO("delta_th = %f", rotation);
 
 		cmd_vel.angular.z = calRotationVel(rotation);
 
-		if(fabs(rotation) <= yaw_tolerance_)
+		if(fabs(rotation) <= yaw_moving_tolerance_)
 		{
 			// The robot has rotated to its next heading pose
 			cmd_vel.angular.z = 0.0;
@@ -279,10 +269,10 @@ namespace zm_local_planner
 		double distance_to_next_heading = linearDistance(robot_pose_.pose.position, move_goal.pose.position);
 
 		// We are approaching the goal position, slow down
-		if(next_heading_index_ == (int) global_plan_.size() - 1)
+		if(next_heading_index_ == (int)global_plan_.size() - 1)
 		{
 			// Reached the goal, now we can stop and rotate the robot to the goal position
-			if(distance_to_next_heading <= xy_tolerance_)
+			if(fabs(distance_to_next_heading) <= xy_tolerance_)
 			{
 				cmd_vel.linear.x = 0.0;
 				cmd_vel.angular.z = 0.0;
@@ -293,7 +283,7 @@ namespace zm_local_planner
 		return true;
 	}
 
-	bool ZMLocalPlanner::rotateToGoal( geometry_msgs::Twist& cmd_vel )
+	bool ZMLocalPlanner::rotateToGoal(geometry_msgs::Twist& cmd_vel)
 	{
 		geometry_msgs::PoseStamped rotate_goal;
 
@@ -304,9 +294,6 @@ namespace zm_local_planner
 		{
 			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
       		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
-
-			// tf_->waitForTransform( base_odom_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration( TRANSFORM_TIMEOUT ) );
-			// tf_->transformPose( base_odom_.header.frame_id, global_plan_[next_heading_index_], rotate_goal );
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -324,8 +311,7 @@ namespace zm_local_planner
 			return false;
 		}
 
-		double rotation = tf2::getYaw( rotate_goal.pose.orientation ) -
-				tf2::getYaw(robot_pose_.pose.orientation );
+		double rotation = rewrapAngleRestricted(tf2::getYaw(rotate_goal.pose.orientation) - tf2::getYaw(robot_pose_.pose.orientation));
 
 		if(fabs(rotation) <= yaw_tolerance_)
 		{
@@ -392,7 +378,8 @@ namespace zm_local_planner
 		double vel = 0.0;
 
 	    double straight_dist = linearDistance(robot_pose_.pose.position, global_plan_[next_heading_index_].pose.position);
-		vel = straight_dist;
+
+		vel = use_BackForward == false ? straight_dist : -straight_dist;
 
 		if(vel > linear_vel_.max_vel)
 		   vel = linear_vel_.max_vel;
@@ -428,20 +415,53 @@ namespace zm_local_planner
 		return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2));
 	}
 
-	double ZMLocalPlanner::mapToMinusPIToPI(double angle)
+	double ZMLocalPlanner::calDeltaAngle(geometry_msgs::PoseStamped p1, geometry_msgs::PoseStamped p2)
 	{
-		double angle_overflow = static_cast<double>(static_cast<int>(angle / PI));
+		double rotation_map;
+		double delta_x = p2.pose.position.x - p1.pose.position.x;
+		double delta_y = p2.pose.position.y - p1.pose.position.y;
 
-		if(angle_overflow > 0.0)
+		rotation_map = ::atan2(delta_y, delta_x) - tf2::getYaw(p1.pose.orientation);
+
+		return rewrapAngleRestricted(rotation_map);
+	}
+
+	const inline double ZMLocalPlanner::rewrapAngleRestricted(const double angle)
+	{
+		double rewrap_angle;
+
+		if(angle > PI)
 		{
-			angle_overflow = ceil(angle_overflow / 2.0);
+			rewrap_angle = angle - 2 * PI;
+		}
+		else if (angle < -PI)
+		{
+			rewrap_angle = angle + 2 * PI;
 		}
 		else
 		{
-			angle_overflow = floor(angle_overflow / 2.0);
+			rewrap_angle = angle;
 		}
 
-		angle -= 2 * PI * angle_overflow;
-		return angle;
+		return rewrap_angle;
+	}
+
+	const inline double ZMLocalPlanner::RestrictedForwardAngle(const double angle)
+	{
+		if(angle > PI / 2)
+		{
+			use_BackForward = true;
+			return angle - PI;
+		}
+		else if(angle < -PI / 2)
+		{
+			use_BackForward = true;
+			return angle + PI;
+		}
+		else
+		{
+			use_BackForward = false;
+			return angle;
+		}
 	}
 }
