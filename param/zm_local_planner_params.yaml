@@ -11,8 +11,9 @@ ZMLocalPlanner:
   min_vel_theta: -0.5
 
 # Goal Tolerance Parametes
-  xy_goal_tolerance: 0.05
-  yaw_goal_tolerance: 0.17
+  xy_goal_tolerance: 0.1
+  yaw_goal_tolerance: 0.1
+  yaw_moving_tolerance: 0.5
 
-# Forward Simulation Parameters
+# TF transform timeout
   timeout: 0.5
