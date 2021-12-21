@@ -3,9 +3,14 @@ ZMLocalPlanner:
   map_frame: "map"
   heading_lookahead: 0.3
 
+  start_angle: 0
+
 # Robot Configuration Parameters
-  max_linear_vel:  0.5
-  min_linear_vel: -0.5
+  max_x_vel:  0.5
+  min_x_vel: -0.5
+
+  max_y_vel:  0.5
+  min_y_vel: -0.5
 
   max_vel_theta:  0.5
   min_vel_theta: -0.5
@@ -15,5 +20,5 @@ ZMLocalPlanner:
   yaw_goal_tolerance: 0.1
   yaw_moving_tolerance: 0.5
 
-# TF transform timeout
+# TF tansform timeout
   timeout: 0.5
