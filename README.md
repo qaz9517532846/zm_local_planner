@@ -46,6 +46,8 @@ $ catkin_make
 
 [1]. rto_core. https://github.com/dietriro/rto_core
 
+[2]. robotino_local_planner. http://wiki.ros.org/robotino_local_planner
+
 ------
 
 This repository is for your reference only. copying, patent application, academic journals are strictly prohibited.
