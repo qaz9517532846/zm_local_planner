@@ -13,7 +13,7 @@ $ cd <catkin_ws>/src
 ```
 
 ``` bash
-$ git clone https://github.com/qaz9517532846/zm_local_planner.git
+$ git clone -b diff https://github.com/qaz9517532846/zm_local_planner.git
 ```
 
 ``` bash
