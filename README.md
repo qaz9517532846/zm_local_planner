@@ -4,7 +4,9 @@
 
 - Software: Robot Operating System.
 
-- Version: kinetic, melodic, noetic.
+- OS: Linux Ubuntu 18.04 and Linux Ubuntu 20.04
+
+- Version: melodic, noetic.
 
 - Step1. Download zm_local_planner github link.
 
