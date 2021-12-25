@@ -6,9 +6,11 @@ ZMLocalPlanner:
 # Robot Configuration Parameters
   max_linear_vel:  0.5
   min_linear_vel: -0.5
+  acc_linear_vel:  0.2
 
   max_vel_theta:  0.5
   min_vel_theta: -0.5
+  acc_vel_theta:  0.2
 
 # Goal Tolerance Parametes
   xy_goal_tolerance: 0.1

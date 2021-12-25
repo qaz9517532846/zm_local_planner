@@ -80,6 +80,8 @@ namespace zm_local_planner
            {
                double max_vel;
                double min_vel;
+               double limit_acc;
+               double current_vel;
            };
 
            constraint_vel linear_vel_, rotation_vel_;
@@ -90,6 +92,7 @@ namespace zm_local_planner
            double transform_timeout_;
 
            bool use_BackForward;
+           ros::Time last_time_;
     };
 
 };
