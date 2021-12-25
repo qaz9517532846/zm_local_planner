@@ -41,14 +41,13 @@ namespace zm_local_planner
            bool move(geometry_msgs::Twist& cmd_vel);
            bool rotateToGoal(geometry_msgs::Twist& cmd_vel);
            void computeNextHeadingIndex();
-           double calLinearVel();
            double calRotationVel(double rotation);
            double linearDistance(geometry_msgs::Point p1, geometry_msgs::Point p2);
            double calDeltaAngle(geometry_msgs::PoseStamped p1, geometry_msgs::PoseStamped p2);
+           double calStartDeltaAngleOnmi(geometry_msgs::PoseStamped p1, double angle);
            const inline double rewrapAngleRestricted(const double angle);
            const inline double RestrictedForwardAngle(const double angle);
            void reconfigureCB(ZMLocalPlannerConfig &config, uint32_t level);
-
 	       dynamic_reconfigure::Server<ZMLocalPlannerConfig> *dsrv_;
            
            typedef enum
@@ -80,9 +79,11 @@ namespace zm_local_planner
            {
                double max_vel;
                double min_vel;
+               double limit_acc;
+               double current_vel;
            };
 
-           constraint_vel linear_vel_, rotation_vel_;
+           constraint_vel x_vel_, y_vel_, rotation_vel_;
            
            double heading_lookahead_;
            double yaw_tolerance_, xy_tolerance_;
@@ -90,6 +91,11 @@ namespace zm_local_planner
            double transform_timeout_;
 
            bool use_BackForward;
+
+           double start_angle_;
+           double constraint_Onmi(double vel, constraint_vel &set);
+
+           ros::Time last_time_;
     };
 
 };
