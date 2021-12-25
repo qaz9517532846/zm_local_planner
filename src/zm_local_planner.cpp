@@ -505,7 +505,7 @@ namespace zm_local_planner
 		}
 
 		//set.last_vel = velocity;
-		ROS_INFO("vel = %f", set.current_vel);
+		//ROS_INFO("vel = %f", set.current_vel);
 		
 		return set.current_vel;
 	}
