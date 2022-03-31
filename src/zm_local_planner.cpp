@@ -28,10 +28,8 @@ namespace zm_local_planner
         heading_lookahead_ = config.heading_lookahead;
         linear_vel_.max_vel = config.max_linear_vel;
         linear_vel_.min_vel = config.min_linear_vel;
-		linear_vel_.limit_acc = config.acc_linear_vel;
         rotation_vel_.max_vel = config.max_vel_theta;
         rotation_vel_.min_vel = config.min_vel_theta;
-		rotation_vel_.limit_acc = config.acc_vel_theta;
         xy_tolerance_ = config.xy_goal_tolerance;
         yaw_tolerance_ = config.yaw_goal_tolerance;
 		yaw_moving_tolerance_ = config.yaw_moving_tolerance;
@@ -45,9 +43,6 @@ namespace zm_local_planner
 
         tf_ = tf;
         costmap_ros_ = costmap_ros;
-
-		linear_vel_.current_vel = 0;
-		rotation_vel_.current_vel = 0;
 		
 		ros::NodeHandle global_node;
 		next_heading_pub_ = private_nh.advertise<visualization_msgs::Marker>("marker", 10);
@@ -66,7 +61,6 @@ namespace zm_local_planner
 
 	bool ZMLocalPlanner::setPlan( const std::vector<geometry_msgs::PoseStamped>& global_plan)
 	{
-		last_time_ = ros::Time::now();
 		global_plan_.clear();
 
 		// Make our copy of the global plan
@@ -84,22 +78,6 @@ namespace zm_local_planner
 			ROS_ERROR("path_executer: cannot get robot pose");
 			return false;
 		}
-
-		footprint_pos = get_footprint_cost(costmap_ros_, robot_pose_);
-		ROS_INFO("footprint_1_x = %f, footprint_1_y = %f, footprint_2_x = %f, footprint_2_y = %f", 
-		          footprint_pos[0].x, footprint_pos[0].y, footprint_pos[1].x, footprint_pos[1].y);
-		ROS_INFO("footprint_3_x = %f, footprint_3_y = %f, footprint_4_x = %f, footprint_4_y = %f", 
-		          footprint_pos[2].x, footprint_pos[2].y, footprint_pos[3].x, footprint_pos[3].y);
-
-		int footprint_pos_cost[4];
-		for(int i = 0; i < 4; i++)
-		{
-			footprint_pos_cost[i] = get_cost(costmap_ros_, footprint_pos[i]);
-		}
-
-		ROS_INFO("footprint_1_cost = %d, footprint_2_cost = %d, footprint_3_cost = %d, footprint_4_cost = %d",
-		         footprint_pos_cost[0], footprint_pos_cost[1], footprint_pos_cost[2], footprint_pos_cost[3]);
-		
 
 		// Calculate the rotation between the current odom and the vector created above
 		double rotation = calDeltaAngle(robot_pose_, global_plan_[path_index_]);
@@ -401,58 +379,35 @@ namespace zm_local_planner
 
 	    double straight_dist = linearDistance(robot_pose_.pose.position, global_plan_[next_heading_index_].pose.position);
 
-		vel = use_BackForward == false ? 
-		                         sqrt(2 * linear_vel_.limit_acc * straight_dist) :
-								 -sqrt(2 * linear_vel_.limit_acc * straight_dist);
+		vel = use_BackForward == false ? straight_dist : -straight_dist;
 
-		double dt = (ros::Time::now() - last_time_).toSec();
+		if(vel > linear_vel_.max_vel)
+		   vel = linear_vel_.max_vel;
 
-		if(vel > linear_vel_.current_vel)
-		{
-			linear_vel_.current_vel += fmin(vel - linear_vel_.current_vel, linear_vel_.limit_acc * dt);
-		}
-		else
-		{
-			linear_vel_.current_vel += fmax(vel - linear_vel_.current_vel, -linear_vel_.limit_acc * dt);
-		}
+		if(vel < linear_vel_.min_vel)
+		   vel = linear_vel_.min_vel;
 
-		if(linear_vel_.current_vel > linear_vel_.max_vel)
-		{
-			linear_vel_.current_vel = linear_vel_.max_vel;
-		}
-		else if (linear_vel_.current_vel < linear_vel_.min_vel)
-		{
-			linear_vel_.current_vel = linear_vel_.min_vel;
-		}
-
-		return linear_vel_.current_vel;
+		return vel;
 	}
 
 	double ZMLocalPlanner::calRotationVel(double rotation)
 	{
 		double vel = 0.0;
-		double dt = (ros::Time::now() - last_time_).toSec();
-		vel = rotation >= 0 ? sqrt(2 * rotation_vel_.limit_acc * fabs(rotation)) : -sqrt(2 * rotation_vel_.limit_acc * fabs(rotation));
 
-		if(vel > rotation_vel_.current_vel)
+		if(rotation > rotation_vel_.max_vel)
 		{
-			rotation_vel_.current_vel += fmin(vel - rotation_vel_.current_vel, rotation_vel_.limit_acc * dt);
+			vel = rotation_vel_.max_vel;
+		}
+		else if(rotation < rotation_vel_.min_vel)
+		{
+			vel = rotation_vel_.min_vel;
 		}
 		else
 		{
-			rotation_vel_.current_vel += fmax(vel - rotation_vel_.current_vel, -rotation_vel_.limit_acc * dt);
+			vel = rotation;
 		}
-
-		if(rotation_vel_.current_vel > rotation_vel_.max_vel)
-		{
-			rotation_vel_.current_vel = rotation_vel_.max_vel;
-		}
-		else if(rotation_vel_.current_vel < rotation_vel_.min_vel)
-		{
-			rotation_vel_.current_vel = rotation_vel_.min_vel;
-		}
-
-		return rotation_vel_.current_vel;
+		   
+		return vel;
 	}
 
 	double ZMLocalPlanner::linearDistance(geometry_msgs::Point p1, geometry_msgs::Point p2)
@@ -508,26 +463,5 @@ namespace zm_local_planner
 			use_BackForward = false;
 			return angle;
 		}
-	}
-
-	std::vector<geometry_msgs::Point> ZMLocalPlanner::get_footprint_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose)
-	{
-		std::vector<geometry_msgs::Point> footprint_position = costmap_ros->getRobotFootprint();
-		for(int i = 0; i < footprint_position.size(); i++)
-		{
-			tf2::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
-			auto bound_pos = tf2::Matrix3x3(q) * tf2::Vector3(footprint_position[i].x, footprint_position[i].y, 0);
-			footprint_position[i].x = pose.pose.position.x + bound_pos[0];
-			footprint_position[i].y = pose.pose.position.y + bound_pos[1];
-		}
-
-		return footprint_position;
-	}
-
-	int ZMLocalPlanner::get_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::Point pose)
-	{
-		int loal_costmap_pos[2];
-		costmap_ros->getCostmap()->worldToMapEnforceBounds(pose.x, pose.y, loal_costmap_pos[0], loal_costmap_pos[1]);
-		return costmap_ros->getCostmap()->getCost(loal_costmap_pos[0], loal_costmap_pos[1]);
 	}
 }
