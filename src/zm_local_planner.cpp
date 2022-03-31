@@ -85,6 +85,22 @@ namespace zm_local_planner
 			return false;
 		}
 
+		footprint_pos = get_footprint_cost(costmap_ros_, robot_pose_);
+		ROS_INFO("footprint_1_x = %f, footprint_1_y = %f, footprint_2_x = %f, footprint_2_y = %f", 
+		          footprint_pos[0].x, footprint_pos[0].y, footprint_pos[1].x, footprint_pos[1].y);
+		ROS_INFO("footprint_3_x = %f, footprint_3_y = %f, footprint_4_x = %f, footprint_4_y = %f", 
+		          footprint_pos[2].x, footprint_pos[2].y, footprint_pos[3].x, footprint_pos[3].y);
+
+		int footprint_pos_cost[4];
+		for(int i = 0; i < 4; i++)
+		{
+			footprint_pos_cost[i] = get_cost(costmap_ros_, footprint_pos[i]);
+		}
+
+		ROS_INFO("footprint_1_cost = %d, footprint_2_cost = %d, footprint_3_cost = %d, footprint_4_cost = %d",
+		         footprint_pos_cost[0], footprint_pos_cost[1], footprint_pos_cost[2], footprint_pos_cost[3]);
+		
+
 		// Calculate the rotation between the current odom and the vector created above
 		double rotation = calDeltaAngle(robot_pose_, global_plan_[path_index_]);
 		rotation = RestrictedForwardAngle(rotation);
@@ -492,5 +508,26 @@ namespace zm_local_planner
 			use_BackForward = false;
 			return angle;
 		}
+	}
+
+	std::vector<geometry_msgs::Point> ZMLocalPlanner::get_footprint_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose)
+	{
+		std::vector<geometry_msgs::Point> footprint_position = costmap_ros->getRobotFootprint();
+		for(int i = 0; i < footprint_position.size(); i++)
+		{
+			tf2::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
+			auto bound_pos = tf2::Matrix3x3(q) * tf2::Vector3(footprint_position[i].x, footprint_position[i].y, 0);
+			footprint_position[i].x = pose.pose.position.x + bound_pos[0];
+			footprint_position[i].y = pose.pose.position.y + bound_pos[1];
+		}
+
+		return footprint_position;
+	}
+
+	int ZMLocalPlanner::get_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::Point pose)
+	{
+		int loal_costmap_pos[2];
+		costmap_ros->getCostmap()->worldToMapEnforceBounds(pose.x, pose.y, loal_costmap_pos[0], loal_costmap_pos[1]);
+		return costmap_ros->getCostmap()->getCost(loal_costmap_pos[0], loal_costmap_pos[1]);
 	}
 }
