@@ -52,10 +52,11 @@ namespace zm_local_planner
            const inline double rewrapAngleRestricted(const double angle);
            const inline double RestrictedForwardAngle(const double angle);
            void reconfigureCB(ZMLocalPlannerConfig &config, uint32_t level);
+           nav_msgs::Path path_publisher(std::string frame, std::vector<geometry_msgs::PoseStamped> plan);
 
            std::vector<geometry_msgs::Point> get_footprint_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose);
            int get_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::Point pose);
-           std::vector<geometry_msgs::PoseStamped> cal_local_planner(costmap_2d::Costmap2DROS* costmap_ros, std::vector<geometry_msgs::PoseStamped> global_plan);
+           std::vector<geometry_msgs::PoseStamped> cal_local_planner(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose, std::vector<geometry_msgs::PoseStamped> global_plan);
 
 	       dynamic_reconfigure::Server<ZMLocalPlannerConfig> *dsrv_;
            
@@ -64,7 +65,6 @@ namespace zm_local_planner
                RotatingToStart,
                Moving,
                RotatingToGoal,
-               Stuck,
                Finished
            } State;
 

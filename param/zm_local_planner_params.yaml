@@ -17,5 +17,10 @@ ZMLocalPlanner:
   yaw_goal_tolerance: 0.1
   yaw_moving_tolerance: 0.5
 
+# avoid parameter
+  obstacle_cost: 200
+  avoid_offset_x: 0.1
+  avoid_offset_y: 0.1
+
 # TF transform timeout
   timeout: 0.5
