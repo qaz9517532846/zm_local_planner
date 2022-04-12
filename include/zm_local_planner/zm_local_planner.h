@@ -44,7 +44,7 @@ namespace zm_local_planner
            bool rotateToStart(geometry_msgs::Twist& cmd_vel);
            bool move(geometry_msgs::Twist& cmd_vel);
            bool rotateToGoal(geometry_msgs::Twist& cmd_vel);
-           void computeNextHeadingIndex(std::vector<geometry_msgs::PoseStamped> plan, int& cal_next_index_);
+           void computeNextHeadingIndex();
            double calLinearVel();
            double calRotationVel(double rotation);
            double linearDistance(geometry_msgs::Point p1, geometry_msgs::Point p2);
@@ -52,11 +52,6 @@ namespace zm_local_planner
            const inline double rewrapAngleRestricted(const double angle);
            const inline double RestrictedForwardAngle(const double angle);
            void reconfigureCB(ZMLocalPlannerConfig &config, uint32_t level);
-           nav_msgs::Path path_publisher(std::string frame, std::vector<geometry_msgs::PoseStamped> plan);
-
-           std::vector<geometry_msgs::Point> get_footprint_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose);
-           int get_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::Point pose);
-           std::vector<geometry_msgs::PoseStamped> cal_local_planner(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose, std::vector<geometry_msgs::PoseStamped> global_plan);
 
 	       dynamic_reconfigure::Server<ZMLocalPlannerConfig> *dsrv_;
            
@@ -73,7 +68,6 @@ namespace zm_local_planner
            tf2_ros::Buffer* tf_;
            costmap_2d::Costmap2DROS* costmap_ros_;
            std::vector<geometry_msgs::PoseStamped> global_plan_;
-           std::vector<geometry_msgs::PoseStamped> local_plan_;
             
            geometry_msgs::PoseStamped robot_pose_;
            ros::Publisher next_heading_pub_;
@@ -82,7 +76,6 @@ namespace zm_local_planner
            int path_index_;
 
            ros::Publisher global_plan_pub_;
-           ros::Publisher local_plan_pub_;
             
            // Parameters
            std::string map_frame_;
@@ -91,8 +84,6 @@ namespace zm_local_planner
            {
                double max_vel;
                double min_vel;
-               double limit_acc;
-               double current_vel;
            };
 
            constraint_vel linear_vel_, rotation_vel_;
@@ -103,14 +94,8 @@ namespace zm_local_planner
            double transform_timeout_;
 
            bool use_BackForward;
-           ros::Time last_time_;
 
            std::vector<geometry_msgs::Point> footprint_pos;
-
-           int obstacle_cost_;
-           double avoid_offset_x_;
-           double avoid_offset_y_;
-           int local_next_heading_;
     };
 
 };

@@ -26,22 +26,13 @@ namespace zm_local_planner
 
         map_frame_ = config.map_frame;
         heading_lookahead_ = config.heading_lookahead;
-
         linear_vel_.max_vel = config.max_linear_vel;
         linear_vel_.min_vel = config.min_linear_vel;
-		linear_vel_.limit_acc = config.acc_linear_vel;
         rotation_vel_.max_vel = config.max_vel_theta;
         rotation_vel_.min_vel = config.min_vel_theta;
-		rotation_vel_.limit_acc = config.acc_vel_theta;
-
         xy_tolerance_ = config.xy_goal_tolerance;
         yaw_tolerance_ = config.yaw_goal_tolerance;
 		yaw_moving_tolerance_ = config.yaw_moving_tolerance;
-
-		obstacle_cost_ = config.obstacle_cost;
-        avoid_offset_x_ = config.avoid_offset_x;
-        avoid_offset_y_ = config.avoid_offset_y;
-
         transform_timeout_ = config.timeout;
     }
 
@@ -49,13 +40,9 @@ namespace zm_local_planner
     {
         ros::NodeHandle private_nh("~/" + name);
         global_plan_pub_ = private_nh.advertise<nav_msgs::Path>("global_plan", 1);
-		local_plan_pub_ = private_nh.advertise<nav_msgs::Path>("local_plan", 1);
 
         tf_ = tf;
         costmap_ros_ = costmap_ros;
-
-		linear_vel_.current_vel = 0;
-		rotation_vel_.current_vel = 0;
 		
 		ros::NodeHandle global_node;
 		next_heading_pub_ = private_nh.advertise<visualization_msgs::Marker>("marker", 10);
@@ -72,11 +59,9 @@ namespace zm_local_planner
         return (state_ == Finished);
     }
 
-	bool ZMLocalPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan)
+	bool ZMLocalPlanner::setPlan( const std::vector<geometry_msgs::PoseStamped>& global_plan)
 	{
-		last_time_ = ros::Time::now();
 		global_plan_.clear();
-		local_plan_.clear();
 
 		// Make our copy of the global plan
 		global_plan_ = global_plan;
@@ -93,9 +78,6 @@ namespace zm_local_planner
 			ROS_ERROR("path_executer: cannot get robot pose");
 			return false;
 		}
-
-		// We need to compute the next heading point from the global plan
-		//computeNextHeadingIndex(global_plan_, next_heading_index_);
 
 		// Calculate the rotation between the current odom and the vector created above
 		double rotation = calDeltaAngle(robot_pose_, global_plan_[path_index_]);
@@ -118,9 +100,11 @@ namespace zm_local_planner
 			state_ = RotatingToStart;
 		}
 
-		nav_msgs::Path global_path_ = path_publisher("map", global_plan_);
+        nav_msgs::Path global_path_;
+        global_path_.header.stamp = ros::Time::now();
+        global_path_.header.frame_id = map_frame_;
+        global_path_.poses = global_plan_;
         global_plan_pub_.publish(global_path_);
-
 		return true;
 	}
 
@@ -138,18 +122,14 @@ namespace zm_local_planner
 		// Set the default return value as false
 		bool ret = false;
 
-		// calculate local plan from global plan and local cost map.
-		local_plan_ = cal_local_planner(costmap_ros_, robot_pose_, global_plan_);
-		computeNextHeadingIndex(local_plan_, next_heading_index_);
-		ROS_INFO("next_heading_index = %d", next_heading_index_);
-		nav_msgs::Path local_path_ = path_publisher("map", local_plan_);
-		local_plan_pub_.publish(local_path_);
-
 		if(!costmap_ros_->getRobotPose(robot_pose_))
 		{
 			ROS_ERROR("path_executer: cannot get robot pose");
 			return false;
 		}
+
+		// We need to compute the next heading point from the global plan
+		computeNextHeadingIndex();
 
 		switch(state_)
 		{
@@ -204,12 +184,12 @@ namespace zm_local_planner
 		geometry_msgs::PoseStamped rotate_goal;
 
 		ros::Time now = ros::Time::now();
-		local_plan_[next_heading_index_].header.stamp = now;
+		global_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(local_plan_[next_heading_index_], rotate_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -248,12 +228,12 @@ namespace zm_local_planner
 
 		geometry_msgs::PoseStamped move_goal;
 		ros::Time now = ros::Time::now();
-		local_plan_[next_heading_index_].header.stamp = now;
+		global_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(local_plan_[next_heading_index_], move_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(global_plan_[next_heading_index_], move_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -308,12 +288,12 @@ namespace zm_local_planner
 		geometry_msgs::PoseStamped rotate_goal;
 
 		ros::Time now = ros::Time::now();
-		local_plan_[next_heading_index_].header.stamp = now;
+		global_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(local_plan_[next_heading_index_], rotate_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -345,20 +325,19 @@ namespace zm_local_planner
 		return true;
 	}
 
-	void ZMLocalPlanner::computeNextHeadingIndex(std::vector<geometry_msgs::PoseStamped> plan, int& cal_next_index_)
+	void ZMLocalPlanner::computeNextHeadingIndex()
 	{
 		geometry_msgs::PoseStamped next_heading_pose;
-		cal_next_index_ = 0;
 
-		for(unsigned int i = curr_heading_index_; i < plan.size() - 1; ++i)
+		for(unsigned int i = curr_heading_index_; i < global_plan_.size() - 1; ++i)
 		{
 			ros::Time now = ros::Time::now();
-			plan[i].header.stamp = now;
+			global_plan_[i].header.stamp = now;
 
 			try
 			{
-				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, plan[i].header.frame_id, now, ros::Duration(transform_timeout_));
-      			tf2::doTransform(plan[i], next_heading_pose, trans);
+				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[i].header.frame_id, now, ros::Duration(transform_timeout_));
+      			tf2::doTransform(global_plan_[i], next_heading_pose, trans);
 			}
 			catch(tf2::LookupException& ex)
 			{
@@ -377,72 +356,50 @@ namespace zm_local_planner
 			}
 
 			double dist = linearDistance(robot_pose_.pose.position, next_heading_pose.pose.position);
-			cal_next_index_ = i;
+			next_heading_index_ = i;
+
 			if(dist > heading_lookahead_)
 			{
 				break;
 			}
 		}
 	}
-
+	
 	double ZMLocalPlanner::calLinearVel()
 	{
 		double vel = 0.0;
 
-	    double straight_dist = linearDistance(robot_pose_.pose.position, local_plan_[next_heading_index_].pose.position);
+	    double straight_dist = linearDistance(robot_pose_.pose.position, global_plan_[next_heading_index_].pose.position);
 
-		vel = use_BackForward == false ? 
-		                         sqrt(2 * linear_vel_.limit_acc * straight_dist) :
-								 -sqrt(2 * linear_vel_.limit_acc * straight_dist);
+		vel = !use_BackForward ? straight_dist : -straight_dist;
 
-		double dt = (ros::Time::now() - last_time_).toSec();
-
-		if(vel > linear_vel_.current_vel)
+		if(vel > linear_vel_.max_vel)
 		{
-			linear_vel_.current_vel += fmin(vel - linear_vel_.current_vel, linear_vel_.limit_acc * dt);
+			vel = linear_vel_.max_vel;
 		}
-		else
+		else if (vel < linear_vel_.min_vel)
 		{
-			linear_vel_.current_vel += fmax(vel - linear_vel_.current_vel, -linear_vel_.limit_acc * dt);
+			vel = linear_vel_.min_vel;
 		}
 
-		if(linear_vel_.current_vel > linear_vel_.max_vel)
-		{
-			linear_vel_.current_vel = linear_vel_.max_vel;
-		}
-		else if (linear_vel_.current_vel < linear_vel_.min_vel)
-		{
-			linear_vel_.current_vel = linear_vel_.min_vel;
-		}
-
-		return linear_vel_.current_vel;
+		return vel;
 	}
 
 	double ZMLocalPlanner::calRotationVel(double rotation)
 	{
 		double vel = 0.0;
-		double dt = (ros::Time::now() - last_time_).toSec();
-		vel = rotation >= 0 ? sqrt(2 * rotation_vel_.limit_acc * fabs(rotation)) : -sqrt(2 * rotation_vel_.limit_acc * fabs(rotation));
+		vel = rotation >= 0 ? fabs(rotation) : -fabs(rotation);
 
-		if(vel > rotation_vel_.current_vel)
+		if(vel > rotation_vel_.max_vel)
 		{
-			rotation_vel_.current_vel += fmin(vel - rotation_vel_.current_vel, rotation_vel_.limit_acc * dt);
+			vel = rotation_vel_.max_vel;
 		}
-		else
+		else if(vel < rotation_vel_.min_vel)
 		{
-			rotation_vel_.current_vel += fmax(vel - rotation_vel_.current_vel, -rotation_vel_.limit_acc * dt);
-		}
-
-		if(rotation_vel_.current_vel > rotation_vel_.max_vel)
-		{
-			rotation_vel_.current_vel = rotation_vel_.max_vel;
-		}
-		else if(rotation_vel_.current_vel < rotation_vel_.min_vel)
-		{
-			rotation_vel_.current_vel = rotation_vel_.min_vel;
+			vel = rotation_vel_.min_vel;
 		}
 
-		return rotation_vel_.current_vel;
+		return vel;
 	}
 
 	double ZMLocalPlanner::linearDistance(geometry_msgs::Point p1, geometry_msgs::Point p2)
@@ -498,142 +455,5 @@ namespace zm_local_planner
 			use_BackForward = false;
 			return angle;
 		}
-	}
-
-	std::vector<geometry_msgs::Point> ZMLocalPlanner::get_footprint_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose)
-	{
-		std::vector<geometry_msgs::Point> footprint_position = costmap_ros->getRobotFootprint();
-		for(int i = 0; i < footprint_position.size(); i++)
-		{
-			tf2::Quaternion q(pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w);
-			auto bound_pos = tf2::Matrix3x3(q) * tf2::Vector3(footprint_position[i].x, footprint_position[i].y, 0);
-			footprint_position[i].x = pose.pose.position.x + bound_pos[0];
-			footprint_position[i].y = pose.pose.position.y + bound_pos[1];
-		}
-
-		return footprint_position;
-	}
-
-	int ZMLocalPlanner::get_cost(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::Point pose)
-	{
-		int local_costmap_pos[2];
-		costmap_ros->getCostmap()->worldToMapEnforceBounds(pose.x, pose.y, local_costmap_pos[0], local_costmap_pos[1]);
-		ROS_INFO("cost_map_pos_x = %d, cost_map_pos_y = %d", local_costmap_pos[0], local_costmap_pos[1]);
-		return costmap_ros->getCostmap()->getCost(local_costmap_pos[0], local_costmap_pos[1]);
-	}
-
-	std::vector<geometry_msgs::PoseStamped> ZMLocalPlanner::cal_local_planner(costmap_2d::Costmap2DROS* costmap_ros, geometry_msgs::PoseStamped pose, std::vector<geometry_msgs::PoseStamped> global_plan)
-	{
-		std::vector<geometry_msgs::PoseStamped> cal_local_plan_;
-
-		bool obstacle_footprint_1 = false;
-		bool obstacle_footprint_2 = false;
-		bool obstacle_footprint_3 = false;
-		bool obstacle_footprint_4 = false;
-
-		bool have_obstacle = false;
-		int num_obstacle = 0;
-
-		bool left_obstacle = false;
-		bool right_obstacle = false;
-
-		std::vector<geometry_msgs::Point> footprint_pos;
-		footprint_pos = get_footprint_cost(costmap_ros, pose);
-
-		int footprint_cost_[4];
-		for(int i = 0; i < 4; i++)
-		{
-			footprint_cost_[i] = get_cost(costmap_ros_, footprint_pos[i]);
-		}
-
-		obstacle_footprint_1 = footprint_cost_[0] >= obstacle_cost_ ? true : false;
-		obstacle_footprint_2 = footprint_cost_[1] >= obstacle_cost_ ? true : false;
-		obstacle_footprint_3 = footprint_cost_[2] >= obstacle_cost_ ? true : false;
-		obstacle_footprint_4 = footprint_cost_[3] >= obstacle_cost_ ? true : false;
-		have_obstacle = obstacle_footprint_1 || obstacle_footprint_2 || obstacle_footprint_3 || obstacle_footprint_4;
-		ROS_INFO("%d, %d, %d, %d", footprint_cost_[0], footprint_cost_[1], footprint_cost_[2], footprint_cost_[3]);
-		ROS_INFO("have_obstacle = %d", have_obstacle);
-
-		if(have_obstacle)
-		{
-			geometry_msgs::PoseStamped back_pose = pose;
-			cal_local_plan_.push_back(pose);
-			tf2::Vector3 back_point;
-			double back_point_rpy_[3];
-			tf2::Quaternion q(pose.pose.orientation.x, 
-			                  pose.pose.orientation.y, 
-							  pose.pose.orientation.z, 
-							  pose.pose.orientation.w);
-			
-			// 3x3 Rotation matrix from quaternion
-			tf2::Matrix3x3 m(q);
-			// Roll Pitch and Yaw from rotation matrix
-			m.getRPY(back_point_rpy_[0], back_point_rpy_[1], back_point_rpy_[2]);	
-
-			float avoid_distance = sqrt(pow(avoid_offset_x_, 2) + pow(avoid_offset_y_, 2));
-
-			double back_rotation = calDeltaAngle(pose, global_plan[path_index_]);
-			//ROS_INFO("Delta Angle = %f", back_rotation);
-			if(back_rotation > -PI / 2 && back_rotation < PI / 2)
-			{
-				back_point = tf2::Matrix3x3(q) * tf2::Vector3(-avoid_offset_x_, 0, 0);
-				if(obstacle_footprint_1 && !obstacle_footprint_2)
-				{
-					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
-				}
-				else if(!obstacle_footprint_1 && obstacle_footprint_2)
-				{
-					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
-				}
-			}
-			else
-			{
-				back_point = tf2::Matrix3x3(q) * tf2::Vector3(avoid_offset_x_, 0, 0);
-				if(obstacle_footprint_4 && !obstacle_footprint_3)
-				{
-					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
-				}
-				else if(!obstacle_footprint_4 && obstacle_footprint_3)
-				{
-					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
-				}
-			}
-
-			//avoid back motion
-			back_pose.pose.position.x += back_point[0];
-			back_pose.pose.position.y += back_point[1];
-
-			cal_local_plan_.push_back(back_pose);
-
-			//avoid x-y offset motion
-			geometry_msgs::PoseStamped avoid_pose;
-			tf2::Quaternion avoid_quat;
-			geometry_msgs::Quaternion avoid_quat_tf;
-			avoid_quat.setRPY(back_point_rpy_[0], back_point_rpy_[1], back_point_rpy_[2]);
-			avoid_quat_tf = tf2::toMsg(avoid_quat);
-
-			tf2::Vector3 avoid_point = tf2::Matrix3x3(avoid_quat) * tf2::Vector3(avoid_distance, 0, 0);
-			back_pose.pose.position.x += avoid_point[0];
-			back_pose.pose.position.y += avoid_point[1];
-			avoid_pose.pose.position.x = back_pose.pose.position.x;
-			avoid_pose.pose.position.y = back_pose.pose.position.y;
-			avoid_pose.pose.orientation = avoid_quat_tf;
-			cal_local_plan_.push_back(avoid_pose);
-		}
-		else
-		{
-			cal_local_plan_ = global_plan;
-		}
-
-		return cal_local_plan_;
-	}
-
-	nav_msgs::Path ZMLocalPlanner::path_publisher(std::string frame, std::vector<geometry_msgs::PoseStamped> plan)
-	{
-		nav_msgs::Path pub_path_;
-		pub_path_.header.stamp = ros::Time::now();
-        pub_path_.header.frame_id = frame;
-        pub_path_.poses = plan;
-		return pub_path_;
 	}
 }
