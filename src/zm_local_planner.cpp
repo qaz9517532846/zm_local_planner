@@ -369,10 +369,9 @@ namespace zm_local_planner
 			}
 
 			double dist = linearDistance(robot_pose_.pose.position, next_heading_pose.pose.position);
-
+			next_heading_index_ = i;
 			if(dist > heading_lookahead_)
 			{
-				next_heading_index_ = i;
 				break;
 			}
 		}
