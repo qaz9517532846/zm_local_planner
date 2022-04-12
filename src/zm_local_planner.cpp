@@ -361,8 +361,8 @@ namespace zm_local_planner
 
 			try
 			{
-				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      			tf2::doTransform(global_plan_[next_heading_index_], next_heading_pose, trans);
+				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[i].header.frame_id, now, ros::Duration(transform_timeout_));
+      			tf2::doTransform(global_plan_[i], next_heading_pose, trans);
 			}
 			catch(tf2::LookupException& ex)
 			{
@@ -385,14 +385,9 @@ namespace zm_local_planner
 			if(dist > heading_lookahead_)
 			{
 				next_heading_index_ = i;
-				return;
-			}
-			else
-			{
-				curr_heading_index_++;
+				break;
 			}
 		}
-		next_heading_index_ = global_plan_.size() - 1;
 	}
 
 	double ZMLocalPlanner::calRotationVel(double rotation)
