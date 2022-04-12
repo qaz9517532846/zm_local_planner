@@ -1,26 +1,26 @@
 ZMLocalPlanner:
   
   map_frame: "map"
-  heading_lookahead: 0.3
+  heading_lookahead: 2
 
 # Robot Configuration Parameters
   max_linear_vel:  0.5
   min_linear_vel: -0.5
-  acc_linear_vel:  0.2
+  acc_linear_vel:  0.3
 
   max_vel_theta:  0.5
   min_vel_theta: -0.5
-  acc_vel_theta:  0.2
+  acc_vel_theta:  0.3
 
 # Goal Tolerance Parametes
   xy_goal_tolerance: 0.1
   yaw_goal_tolerance: 0.1
-  yaw_moving_tolerance: 0.5
+  yaw_moving_tolerance: 0.3
 
 # avoid parameter
   obstacle_cost: 200
-  avoid_offset_x: 0.1
-  avoid_offset_y: 0.1
+  avoid_offset_x: 1
+  avoid_offset_y: 1
 
 # TF transform timeout
   timeout: 0.5

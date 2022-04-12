@@ -26,12 +26,14 @@ namespace zm_local_planner
 
         map_frame_ = config.map_frame;
         heading_lookahead_ = config.heading_lookahead;
+
         linear_vel_.max_vel = config.max_linear_vel;
         linear_vel_.min_vel = config.min_linear_vel;
 		linear_vel_.limit_acc = config.acc_linear_vel;
         rotation_vel_.max_vel = config.max_vel_theta;
         rotation_vel_.min_vel = config.min_vel_theta;
 		rotation_vel_.limit_acc = config.acc_vel_theta;
+
         xy_tolerance_ = config.xy_goal_tolerance;
         yaw_tolerance_ = config.yaw_goal_tolerance;
 		yaw_moving_tolerance_ = config.yaw_moving_tolerance;
@@ -93,10 +95,7 @@ namespace zm_local_planner
 		}
 
 		// We need to compute the next heading point from the global plan
-		computeNextHeadingIndex(global_plan_, next_heading_index_);
-		ROS_INFO("next_heading_index = %d", next_heading_index_);
-
-		local_plan_ = cal_local_planner(costmap_ros_, robot_pose_, global_plan_);
+		//computeNextHeadingIndex(global_plan_, next_heading_index_);
 
 		// Calculate the rotation between the current odom and the vector created above
 		double rotation = calDeltaAngle(robot_pose_, global_plan_[path_index_]);
@@ -120,9 +119,7 @@ namespace zm_local_planner
 		}
 
 		nav_msgs::Path global_path_ = path_publisher("map", global_plan_);
-        nav_msgs::Path local_path_ = path_publisher("map", local_plan_);
         global_plan_pub_.publish(global_path_);
-		local_plan_pub_.publish(local_path_);
 
 		return true;
 	}
@@ -140,6 +137,13 @@ namespace zm_local_planner
 
 		// Set the default return value as false
 		bool ret = false;
+
+		// calculate local plan from global plan and local cost map.
+		local_plan_ = cal_local_planner(costmap_ros_, robot_pose_, global_plan_);
+		computeNextHeadingIndex(local_plan_, next_heading_index_);
+		ROS_INFO("next_heading_index = %d", next_heading_index_);
+		nav_msgs::Path local_path_ = path_publisher("map", local_plan_);
+		local_plan_pub_.publish(local_path_);
 
 		if(!costmap_ros_->getRobotPose(robot_pose_))
 		{
@@ -200,12 +204,12 @@ namespace zm_local_planner
 		geometry_msgs::PoseStamped rotate_goal;
 
 		ros::Time now = ros::Time::now();
-		global_plan_[next_heading_index_].header.stamp = now;
+		local_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(local_plan_[next_heading_index_], rotate_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -244,12 +248,12 @@ namespace zm_local_planner
 
 		geometry_msgs::PoseStamped move_goal;
 		ros::Time now = ros::Time::now();
-		global_plan_[next_heading_index_].header.stamp = now;
+		local_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(global_plan_[next_heading_index_], move_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(local_plan_[next_heading_index_], move_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -304,12 +308,12 @@ namespace zm_local_planner
 		geometry_msgs::PoseStamped rotate_goal;
 
 		ros::Time now = ros::Time::now();
-		global_plan_[next_heading_index_].header.stamp = now;
+		local_plan_[next_heading_index_].header.stamp = now;
 
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
+			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, local_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
+      		tf2::doTransform(local_plan_[next_heading_index_], rotate_goal, trans);
 		}
 		catch(tf2::LookupException& ex)
 		{
@@ -353,11 +357,8 @@ namespace zm_local_planner
 
 			try
 			{
-				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, plan[cal_next_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      			tf2::doTransform(plan[cal_next_index_], next_heading_pose, trans);
-
-				// tf_->waitForTransform( base_odom_.header.frame_id, global_plan_[i].header.frame_id, now, ros::Duration( TRANSFORM_TIMEOUT ) );
-				// tf_->transformPose( base_odom_.header.frame_id, global_plan_[i], next_heading_pose );
+				geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, plan[i].header.frame_id, now, ros::Duration(transform_timeout_));
+      			tf2::doTransform(plan[i], next_heading_pose, trans);
 			}
 			catch(tf2::LookupException& ex)
 			{
@@ -376,24 +377,19 @@ namespace zm_local_planner
 			}
 
 			double dist = linearDistance(robot_pose_.pose.position, next_heading_pose.pose.position);
-
+			cal_next_index_ = i;
 			if(dist > heading_lookahead_)
 			{
-				cal_next_index_ = i;
-			}
-			else
-			{
-				curr_heading_index_++;
+				break;
 			}
 		}
-		cal_next_index_ = plan.size() - 1;
 	}
 
 	double ZMLocalPlanner::calLinearVel()
 	{
 		double vel = 0.0;
 
-	    double straight_dist = linearDistance(robot_pose_.pose.position, global_plan_[next_heading_index_].pose.position);
+	    double straight_dist = linearDistance(robot_pose_.pose.position, local_plan_[next_heading_index_].pose.position);
 
 		vel = use_BackForward == false ? 
 		                         sqrt(2 * linear_vel_.limit_acc * straight_dist) :
@@ -558,17 +554,10 @@ namespace zm_local_planner
 		ROS_INFO("%d, %d, %d, %d", footprint_cost_[0], footprint_cost_[1], footprint_cost_[2], footprint_cost_[3]);
 		ROS_INFO("have_obstacle = %d", have_obstacle);
 
-		/*
-		if(have_obstacle)
-		{
-			num_obstacle = (obstacle_footprint_1 ? 1 : 0) + (obstacle_footprint_2 ? 1 : 0) + 
-				            (obstacle_footprint_3 ? 1 : 0) + (obstacle_footprint_4 ? 1 : 0);
-		}
-		*/
-
 		if(have_obstacle)
 		{
 			geometry_msgs::PoseStamped back_pose = pose;
+			cal_local_plan_.push_back(pose);
 			tf2::Vector3 back_point;
 			double back_point_rpy_[3];
 			tf2::Quaternion q(pose.pose.orientation.x, 
@@ -583,16 +572,16 @@ namespace zm_local_planner
 
 			float avoid_distance = sqrt(pow(avoid_offset_x_, 2) + pow(avoid_offset_y_, 2));
 
-			double back_rotation = calDeltaAngle(global_plan[curr_heading_index_], global_plan[next_heading_index_]);
-			back_rotation -= back_point_rpy_[2];
-			if(back_rotation >= -PI / 2 && back_rotation <= PI / 2)
+			double back_rotation = calDeltaAngle(pose, global_plan[path_index_]);
+			//ROS_INFO("Delta Angle = %f", back_rotation);
+			if(back_rotation > -PI / 2 && back_rotation < PI / 2)
 			{
 				back_point = tf2::Matrix3x3(q) * tf2::Vector3(-avoid_offset_x_, 0, 0);
-				if(obstacle_footprint_1 && !obstacle_footprint_4)
+				if(obstacle_footprint_1 && !obstacle_footprint_2)
 				{
 					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
 				}
-				else if(!obstacle_footprint_1 && obstacle_footprint_4)
+				else if(!obstacle_footprint_1 && obstacle_footprint_2)
 				{
 					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
 				}
@@ -600,11 +589,11 @@ namespace zm_local_planner
 			else
 			{
 				back_point = tf2::Matrix3x3(q) * tf2::Vector3(avoid_offset_x_, 0, 0);
-				if(obstacle_footprint_2 && !obstacle_footprint_3)
+				if(obstacle_footprint_4 && !obstacle_footprint_3)
 				{
 					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
 				}
-				else if(!obstacle_footprint_2 && obstacle_footprint_3)
+				else if(!obstacle_footprint_4 && obstacle_footprint_3)
 				{
 					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
 				}
@@ -630,11 +619,6 @@ namespace zm_local_planner
 			avoid_pose.pose.position.y = back_pose.pose.position.y;
 			avoid_pose.pose.orientation = avoid_quat_tf;
 			cal_local_plan_.push_back(avoid_pose);
-
-			for(int i = next_heading_index_; i < global_plan.size(); i++)
-			{
-				cal_local_plan_.push_back(global_plan[i]);
-			}
 		}
 		else
 		{
