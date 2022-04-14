@@ -25,7 +25,8 @@ namespace zm_local_planner
         ROS_INFO("ZMLocalPlanner reconfigureCB");
 
         map_frame_ = config.map_frame;
-        heading_lookahead_ = config.heading_lookahead;
+        global_lookahead_ = config.global_lookahead;
+		local_lookahead_ = config.local_lookahead;
 
         linear_vel_.max_vel = config.max_linear_vel;
         linear_vel_.min_vel = config.min_linear_vel;
@@ -141,7 +142,7 @@ namespace zm_local_planner
 		// calculate local plan from global plan and local cost map.
 		local_plan_ = cal_local_planner(costmap_ros_, robot_pose_, global_plan_);
 		computeNextHeadingIndex(local_plan_, next_heading_index_);
-		ROS_INFO("next_heading_index = %d", next_heading_index_);
+		//ROS_INFO("next_heading_index = %d", next_heading_index_);
 		nav_msgs::Path local_path_ = path_publisher("map", local_plan_);
 		local_plan_pub_.publish(local_path_);
 
@@ -171,7 +172,7 @@ namespace zm_local_planner
 
 	void ZMLocalPlanner::publishNextHeading(bool show)
 	{
-		const geometry_msgs::PoseStamped& next_pose = global_plan_[next_heading_index_];
+		const geometry_msgs::PoseStamped& next_pose = local_plan_[next_heading_index_];
 
 		visualization_msgs::Marker marker;
 		marker.id = 0;
@@ -518,7 +519,7 @@ namespace zm_local_planner
 	{
 		int local_costmap_pos[2];
 		costmap_ros->getCostmap()->worldToMapEnforceBounds(pose.x, pose.y, local_costmap_pos[0], local_costmap_pos[1]);
-		ROS_INFO("cost_map_pos_x = %d, cost_map_pos_y = %d", local_costmap_pos[0], local_costmap_pos[1]);
+		//ROS_INFO("cost_map_pos_x = %d, cost_map_pos_y = %d", local_costmap_pos[0], local_costmap_pos[1]);
 		return costmap_ros->getCostmap()->getCost(local_costmap_pos[0], local_costmap_pos[1]);
 	}
 
@@ -551,11 +552,12 @@ namespace zm_local_planner
 		obstacle_footprint_3 = footprint_cost_[2] >= obstacle_cost_ ? true : false;
 		obstacle_footprint_4 = footprint_cost_[3] >= obstacle_cost_ ? true : false;
 		have_obstacle = obstacle_footprint_1 || obstacle_footprint_2 || obstacle_footprint_3 || obstacle_footprint_4;
-		ROS_INFO("%d, %d, %d, %d", footprint_cost_[0], footprint_cost_[1], footprint_cost_[2], footprint_cost_[3]);
-		ROS_INFO("have_obstacle = %d", have_obstacle);
+		//ROS_INFO("%d, %d, %d, %d", footprint_cost_[0], footprint_cost_[1], footprint_cost_[2], footprint_cost_[3]);
+		//ROS_INFO("have_obstacle = %d", have_obstacle);
 
 		if(have_obstacle)
 		{
+			heading_lookahead_ = global_lookahead_;
 			geometry_msgs::PoseStamped back_pose = pose;
 			cal_local_plan_.push_back(pose);
 			tf2::Vector3 back_point;
@@ -570,58 +572,53 @@ namespace zm_local_planner
 			// Roll Pitch and Yaw from rotation matrix
 			m.getRPY(back_point_rpy_[0], back_point_rpy_[1], back_point_rpy_[2]);	
 
-			float avoid_distance = sqrt(pow(avoid_offset_x_, 2) + pow(avoid_offset_y_, 2));
+			float back_distance_divide = avoid_offset_x_ / 10;
+			float back_point_yaw_divide = atan(avoid_offset_y_ / avoid_offset_x_) / 10;
+			int yaw_direction = 1;
 
 			double back_rotation = calDeltaAngle(pose, global_plan[path_index_]);
 			//ROS_INFO("Delta Angle = %f", back_rotation);
 			if(back_rotation > -PI / 2 && back_rotation < PI / 2)
 			{
-				back_point = tf2::Matrix3x3(q) * tf2::Vector3(-avoid_offset_x_, 0, 0);
 				if(obstacle_footprint_1 && !obstacle_footprint_2)
 				{
-					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
+					yaw_direction = -1;
 				}
 				else if(!obstacle_footprint_1 && obstacle_footprint_2)
 				{
-					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
+					yaw_direction = 1;
 				}
 			}
 			else
 			{
-				back_point = tf2::Matrix3x3(q) * tf2::Vector3(avoid_offset_x_, 0, 0);
 				if(obstacle_footprint_4 && !obstacle_footprint_3)
 				{
-					back_point_rpy_[2] += atan(avoid_offset_y_ / avoid_offset_x_);
+					yaw_direction = 1;
 				}
 				else if(!obstacle_footprint_4 && obstacle_footprint_3)
 				{
-					back_point_rpy_[2] -= atan(avoid_offset_y_ / avoid_offset_x_);
+					yaw_direction = -1;
 				}
 			}
+			
+			for(int num = 0; num < 10; num++)
+			{
+				tf2::Quaternion back_quat;
+				geometry_msgs::Quaternion back_quat_tf;
+				back_point_rpy_[2] += yaw_direction * back_point_yaw_divide;
+				back_quat.setRPY(back_point_rpy_[0], back_point_rpy_[1], back_point_rpy_[2]);
+				back_quat_tf = tf2::toMsg(back_quat);
+				back_pose.pose.orientation = back_quat_tf;
 
-			//avoid back motion
-			back_pose.pose.position.x += back_point[0];
-			back_pose.pose.position.y += back_point[1];
-
-			cal_local_plan_.push_back(back_pose);
-
-			//avoid x-y offset motion
-			geometry_msgs::PoseStamped avoid_pose;
-			tf2::Quaternion avoid_quat;
-			geometry_msgs::Quaternion avoid_quat_tf;
-			avoid_quat.setRPY(back_point_rpy_[0], back_point_rpy_[1], back_point_rpy_[2]);
-			avoid_quat_tf = tf2::toMsg(avoid_quat);
-
-			tf2::Vector3 avoid_point = tf2::Matrix3x3(avoid_quat) * tf2::Vector3(avoid_distance, 0, 0);
-			back_pose.pose.position.x += avoid_point[0];
-			back_pose.pose.position.y += avoid_point[1];
-			avoid_pose.pose.position.x = back_pose.pose.position.x;
-			avoid_pose.pose.position.y = back_pose.pose.position.y;
-			avoid_pose.pose.orientation = avoid_quat_tf;
-			cal_local_plan_.push_back(avoid_pose);
+				back_point = tf2::Matrix3x3(back_quat) * tf2::Vector3(yaw_direction * back_distance_divide, 0, 0);
+				back_pose.pose.position.x += back_point[0];
+				back_pose.pose.position.y += back_point[1];
+				cal_local_plan_.push_back(back_pose);
+			}
 		}
 		else
 		{
+			heading_lookahead_ = global_lookahead_;
 			cal_local_plan_ = global_plan;
 		}
 

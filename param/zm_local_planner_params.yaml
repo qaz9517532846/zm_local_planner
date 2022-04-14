@@ -1,7 +1,8 @@
 ZMLocalPlanner:
   
   map_frame: "map"
-  heading_lookahead: 2
+  global_lookahead: 2
+  local_lookahead: 0.2
 
 # Robot Configuration Parameters
   max_linear_vel:  0.5

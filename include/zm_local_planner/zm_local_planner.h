@@ -97,6 +97,8 @@ namespace zm_local_planner
 
            constraint_vel linear_vel_, rotation_vel_;
            
+           double global_lookahead_;
+           double local_lookahead_;
            double heading_lookahead_;
            double yaw_tolerance_, xy_tolerance_;
            double yaw_moving_tolerance_;
