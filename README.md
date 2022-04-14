@@ -50,6 +50,8 @@ $ catkin_make
 
 [2]. robotino_local_planner. http://wiki.ros.org/robotino_local_planner
 
+[3]. neo_local_planner. https://github.com/neobotix/neo_local_planner
+
 ------
 
 This repository is for your reference only. copying, patent application, academic journals are strictly prohibited.
