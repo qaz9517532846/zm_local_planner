@@ -8,7 +8,7 @@
 
 - ROS Noetic under Ubuntu 20.04 LTS
 
-- ROS Melodic under Ubuntu 20.04 LTS
+- ROS Melodic under Ubuntu 18.04 LTS
 
 ------
 
