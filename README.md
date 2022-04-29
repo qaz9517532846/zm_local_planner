@@ -2,31 +2,30 @@
 
 - zm_local_planner is a simple local planner to follow global planner for a Differential mobile robot.
 
-- Software: Robot Operating System.
+------
 
-- OS: Linux Ubuntu 18.04 and Linux Ubuntu 20.04
+## Built with
 
-- Version: melodic, noetic.
+- ROS Noetic under Ubuntu 20.04 LTS
 
-- Step1. Download zm_local_planner github link.
+- ROS Melodic under Ubuntu 20.04 LTS
 
-``` bash
-$ cd <catkin_ws>/src
-```
+------
+
+
+## Getting Started
+
+### Installation
+
+- Download zm_local_planner github link.
 
 ``` bash
 $ git clone -b diff https://github.com/qaz9517532846/zm_local_planner.git
 ```
 
-``` bash
-$ cd ..
-```
+### Run
 
-``` bash
-$ catkin_make
-```
-
-- Step2. zm_local_planner add to move_base.launch file.
+- zm_local_planner add to move_base.launch file.
 
 ``` bash
   <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
