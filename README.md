@@ -20,7 +20,7 @@
 - Download zm_local_planner github link.
 
 ``` bash
-$ git clone -b diff https://github.com/qaz9517532846/zm_local_planner.git
+$ git clone -b diff_acclimit https://github.com/qaz9517532846/zm_local_planner.git
 ```
 
 ### Run
