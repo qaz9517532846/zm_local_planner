@@ -300,27 +300,13 @@ namespace zm_local_planner
 	{
 		geometry_msgs::PoseStamped rotate_goal;
 
-		ros::Time now = ros::Time::now();
-		global_plan_[next_heading_index_].header.stamp = now;
-
 		try
 		{
-			geometry_msgs::TransformStamped trans = tf_->lookupTransform(robot_pose_.header.frame_id, global_plan_[next_heading_index_].header.frame_id, now, ros::Duration(transform_timeout_));
-      		tf2::doTransform(global_plan_[next_heading_index_], rotate_goal, trans);
+			tf_->transform(global_plan_[path_index_], rotate_goal, map_frame_); 
 		}
-		catch(tf2::LookupException& ex)
+		catch(tf2::TransformException& ex)
 		{
-			ROS_ERROR("Lookup Error: %s\n", ex.what());
-			return false;
-		}
-		catch(tf2::ConnectivityException& ex)
-		{
-			ROS_ERROR("Connectivity Error: %s\n", ex.what());
-			return false;
-		}
-		catch(tf2::ExtrapolationException& ex)
-		{
-			ROS_ERROR("Extrapolation Error: %s\n", ex.what());
+			ROS_ERROR("Transform Error: %s\n", ex.what());
 			return false;
 		}
 
